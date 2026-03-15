@@ -280,10 +280,42 @@ else:
     summaries = st.session_state.summaries
     topic     = st.session_state.current_topic
 
+    # ── Always-visible search bar at top of results ──
+    st.markdown("### 🔍 Search a new topic")
+    rs_col1, rs_col2 = st.columns([5, 1])
+    with rs_col1:
+        new_topic = st.text_input("new_topic", placeholder="e.g. Climate Change, Gaza War, AI 2025...",
+                                   label_visibility="collapsed", key="results_search")
+    with rs_col2:
+        new_search_btn = st.button("🔍 Search", key="results_search_btn", use_container_width=True)
+
+    if new_search_btn and new_topic.strip():
+        if not api_key:
+            st.warning("Please add your Groq API key in the sidebar first.")
+        else:
+            prog = st.progress(0, text=f"🔍 Searching news for: {new_topic.strip()}...")
+            from src.news_fetcher import fetch_articles_for_topic
+            def upd2(pct, msg): prog.progress(pct, text=msg)
+            new_articles, new_errors = fetch_articles_for_topic(
+                new_topic.strip(), max_articles=15,
+                newsapi_key=st.session_state.get("newsapi_key",""),
+                gnews_key=st.session_state.get("gnews_key",""),
+                progress_callback=upd2,
+            )
+            for e in new_errors: st.warning(e)
+            if not new_articles:
+                st.error(f"Could not find articles for '{new_topic}'. Try a different topic.")
+                prog.empty()
+            else:
+                prog.empty()
+                run_pipeline(new_articles, new_topic.strip())
+
+    st.markdown("---")
+
     st.markdown(f"""
     <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;
                 border-radius:14px;padding:1rem 1.5rem;margin-bottom:1rem">
-        <div style="font-size:.78rem;opacity:.85;text-transform:uppercase;letter-spacing:.08em">Analyzing topic</div>
+        <div style="font-size:.78rem;opacity:.85;text-transform:uppercase;letter-spacing:.08em">Currently analyzing</div>
         <div style="font-size:1.5rem;font-weight:700;margin-top:.1rem">🔍 {topic}</div>
         <div style="font-size:.8rem;opacity:.85;margin-top:.3rem">
             {len(articles)} articles · {sum(a.word_count for a in articles):,} words analyzed
